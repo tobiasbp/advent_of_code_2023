@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import re
 
+from math import prod
 from pathlib import Path
 
 class Schematic:
@@ -13,13 +14,12 @@ class Schematic:
 
         # Create a set of coordinates for all symbols in the schematic.
         # Top right position is (0, 0).
-        self._symbol_positions = ()
+        self._symbols = []
         for line_no, l in enumerate(raw_data):
             for char_no, c in enumerate(l):
                 if c not in "0123456789.":
-                    self._symbol_positions += ((char_no, line_no),)
-
-        #print("Symbols:", self._symbol_positions)
+                    s = { "pos": (char_no, line_no), "type": c}
+                    self._symbols.append(s)
 
         # Create a list of dictionaries representing potential part
         # numbers in the schematic. Each entry has a keys
@@ -28,7 +28,7 @@ class Schematic:
         # the"top_left" and "lower_right" coordinates describe the square
         # around the potential part number. If a symbol exists whithin
         # this square, it is a part number.
-        potential_parts = []
+        self._potential_parts = []
         for line_no, l in enumerate(raw_data):
             #print(l)
             for match in re.finditer(r'\d+', l):
@@ -39,46 +39,65 @@ class Schematic:
                     "value":  int(match.group()),
                 }
                 # Add the potential part number to the list
-                potential_parts.append(n)
+                self._potential_parts.append(n)
 
-        #print("Potential parts:", [p["value"] for p in potential_parts])
-
-        # Create a list of part numbers in the schematic by checking
-        # if there is a symbol within the square around the potential
-        # part number.
+        # Create a list of parts in the schematic by
+        # finding all parts that are adjacent to a symbol
         self._parts = []
-        for pp in potential_parts:
-            # Check if there is a symbol within the square
-            for symbol_pos in self._symbol_positions:
-                if pp["top_left"][0] <= symbol_pos[0] <= pp["lower_right"][0] and pp["top_left"][1] <= symbol_pos[1] <= pp["lower_right"][1]:
-                    # If so, add the part number to the list
-                    self._parts.append(pp)
-                    break
-        
+        for s in self._symbols:
+            self._parts += self._get_adjacent(s)
+
+        # Create a list of gears in the schematic by
+        # finding all pair of parts that are adjacent
+        # to the same symbol of type "*"
+        self._gears = []
+        for s in [ s for s in self._symbols if s["type"] == "*" ]:
+            if len(a := self._get_adjacent(s)) == 2:
+                self._gears.append(a)
+
+    def _get_adjacent(self, symbol):
+        """"
+        Return a list of parts which have the symbol in their square.
+        """
+        parts = []
+        for p in self._potential_parts:
+            if p["top_left"][0] <= symbol["pos"][0] <= p["lower_right"][0] and p["top_left"][1] <= symbol["pos"][1] <= p["lower_right"][1]:
+                parts.append(p)
+        return parts
+
     @property
-    def parts(self):
+    def part_numbers(self):
         """
         Return a list of the part numbers in the schematic.
         """
         return [ p["value"] for p in self._parts ]
 
+    @property
+    def gears(self):
+        """
+        Return a list of gear sizes for all pair of gears in the schematic.
+        """
+        r = []
+        for g in self._gears:
+            assert len(g) == 2, "Gear has more than two parts."
+            r.append([p["value"] for p in g])
+        return r
+
+
 s = Schematic('data/day_3_example.txt')
-answer_3_1_example = sum(s.parts)
+answer_3_1_example = sum(s.part_numbers)
 assert answer_3_1_example == 4361
 print("Sum of part numbers (example):", answer_3_1_example)
 
+answer_3_2_example = sum([prod(g) for g in s.gears])
+assert answer_3_2_example == 467835
+print("Gears (example):", answer_3_2_example)
+
 s = Schematic('data/day_3.txt')
-answer_3_1 = sum(s.parts)
-#assert answer_3_1 == 4361
+answer_3_1 = sum(s.part_numbers)
+assert answer_3_1 == 519444
 print("Sum of part numbers:", answer_3_1)
 
-
-"""
-answer_2_1 = sum(d.get_possible_games(red=12, green=13, blue=14))
-assert answer_2_1 == 2810
-print("Sum of playable game IDs:", answer_2_1)
-
-answer_2_2 = sum(d.get_needed_dice_products())
-assert answer_2_2 == 69110
-print("Sum of dice products:", answer_2_2)
-"""
+answer_3_2 = sum([prod(g) for g in s.gears])
+assert answer_3_2 == 74528807
+print("Gears:", answer_3_2)
