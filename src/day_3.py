@@ -30,7 +30,7 @@ class Schematic:
         # this square, it is a part number.
         self._potential_parts = []
         for line_no, l in enumerate(raw_data):
-            #print(l)
+            # Add a potential part for all sequences of digits in the line
             for match in re.finditer(r'\d+', l):
                 # A potential part number and it's square
                 n = {
